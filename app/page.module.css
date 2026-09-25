@@ -3,7 +3,6 @@
   --muted: #92919a;
   --soft: #5d5c68;
   --panel: rgba(24, 24, 34, 0.82);
-  --panel-strong: #1c1b28;
   --line: rgba(245, 241, 232, 0.1);
   --lime: #d8f66a;
   --coral: #ff896d;
@@ -239,16 +238,13 @@
   color: var(--lime);
 }
 
-.statusBadge.paused {
+.statusBadge.paused,
+.statusBadge.gameover {
   color: var(--coral);
 }
 
 .statusBadge.complete {
   color: var(--violet);
-}
-
-.statusBadge.gameover {
-  color: var(--coral);
 }
 
 .statusBadge.ready .statusPulse,
@@ -281,318 +277,434 @@
   background: rgba(7, 7, 12, 0.44);
 }
 
-.road {
+.mapCanvas {
   height: 532px;
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025), transparent 25%, transparent 75%, rgba(255, 255, 255, 0.025)),
-    linear-gradient(180deg, #1d1d2a 0%, #15151f 100%);
+    radial-gradient(circle at 17% 18%, rgba(155, 156, 255, 0.12), transparent 16rem),
+    radial-gradient(circle at 82% 76%, rgba(216, 246, 106, 0.08), transparent 18rem),
+    #15151f;
 }
 
-.road::after {
-  content: "";
+.mapGrid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.72;
+  background-image:
+    linear-gradient(rgba(245, 241, 232, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 241, 232, 0.045) 1px, transparent 1px),
+    linear-gradient(rgba(245, 241, 232, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 241, 232, 0.025) 1px, transparent 1px);
+  background-position: center;
+  background-size: 76px 76px, 76px 76px, 19px 19px, 19px 19px;
+}
+
+.mapBlocks {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(155, 156, 255, 0.1), transparent 22%, transparent 72%, rgba(255, 137, 109, 0.08));
 }
 
-.roadGlow {
+.mapBlocks span {
   position: absolute;
-  inset: 0;
+  border: 1px solid rgba(245, 241, 232, 0.07);
+  border-radius: 3px;
+  background: rgba(245, 241, 232, 0.025);
+  transform: rotate(-8deg);
+}
+
+.mapBlockOne {
+  width: 18%;
+  height: 13%;
+  top: 8%;
+  left: 8%;
+}
+
+.mapBlockTwo {
+  width: 22%;
+  height: 15%;
+  top: 10%;
+  right: 9%;
+}
+
+.mapBlockThree {
+  width: 16%;
+  height: 17%;
+  bottom: 9%;
+  left: 12%;
+}
+
+.mapBlockFour {
+  width: 20%;
+  height: 14%;
+  right: 11%;
+  bottom: 8%;
+}
+
+.mapBlockFive {
+  width: 12%;
+  height: 9%;
+  top: 5%;
+  left: 45%;
+}
+
+.mapBlockSix {
+  width: 14%;
+  height: 10%;
+  bottom: 5%;
+  left: 43%;
+}
+
+.mapRoad {
+  position: absolute;
+  top: 25%;
+  right: 7%;
+  bottom: 25%;
+  left: 7%;
+  border: 1px solid rgba(245, 241, 232, 0.12);
+  border-radius: 5px;
   background:
-    radial-gradient(ellipse at 50% 8%, rgba(155, 156, 255, 0.14), transparent 28%),
-    radial-gradient(ellipse at 50% 93%, rgba(216, 246, 106, 0.12), transparent 28%);
-  pointer-events: none;
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025), transparent 25%, transparent 75%, rgba(255, 255, 255, 0.025)),
+    #1d1d2a;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.18);
+  z-index: 2;
 }
 
-.roadEdgeLeft,
-.roadEdgeRight {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 7px;
-  background: linear-gradient(180deg, transparent, rgba(216, 246, 106, 0.5) 25%, rgba(255, 137, 109, 0.5) 72%, transparent);
-  opacity: 0.5;
-  z-index: 1;
-}
-
-.roadEdgeLeft {
-  left: 0;
-}
-
-.roadEdgeRight {
-  right: 0;
-}
-
-.laneLineOne,
-.laneLineTwo {
+.mapLaneLineOne,
+.mapLaneLineTwo {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 1px;
-  border-left: 1px dashed rgba(245, 241, 232, 0.18);
-  z-index: 1;
+  border-left: 1px dashed rgba(245, 241, 232, 0.15);
 }
 
-.laneLineOne {
+.mapLaneLineOne {
   left: 33.333%;
 }
 
-.laneLineTwo {
+.mapLaneLineTwo {
   left: 66.666%;
 }
 
-.catchLine {
+.routeGuide {
   position: absolute;
-  top: 78%;
-  right: 7px;
-  left: 7px;
-  border-top: 1px solid rgba(216, 246, 106, 0.35);
-  box-shadow: 0 -7px 20px rgba(216, 246, 106, 0.08);
-  z-index: 1;
+  top: 50%;
+  right: 3%;
+  left: 3%;
+  border-top: 1px dashed rgba(216, 246, 106, 0.36);
+  transform: translateY(-50%);
 }
 
-.roadLabelTop,
-.roadLabelBottom {
+.routeProgressLine {
   position: absolute;
-  left: 50%;
-  color: rgba(245, 241, 232, 0.32);
+  top: 50%;
+  left: 3%;
+  height: 3px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--coral), var(--lime));
+  box-shadow: 0 0 15px rgba(216, 246, 106, 0.45);
+  transform: translateY(-50%);
+  transition: width 60ms linear;
+}
+
+.mapRouteSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.mapRouteSvg path {
+  fill: none;
+  stroke: rgba(216, 246, 106, 0.34);
+  stroke-width: 0.35;
+  stroke-dasharray: 1.2 1.2;
+}
+
+.mapRouteSvg circle {
+  fill: var(--lime);
+  stroke: rgba(216, 246, 106, 0.2);
+  stroke-width: 1.2;
+}
+
+.pickupMarker,
+.dropMarker {
+  position: absolute;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  color: var(--lime);
   font-family: var(--font-geist-mono), monospace;
-  font-size: 8px;
-  letter-spacing: 0.22em;
-  transform: translateX(-50%);
-  z-index: 2;
-}
-
-.roadLabelTop {
-  top: 18px;
-}
-
-.roadLabelBottom {
-  bottom: 15px;
-}
-
-.vehicle,
-.parcel,
-.truck {
-  position: absolute;
   transform: translate(-50%, -50%);
-  z-index: 4;
 }
 
-.vehicle {
-  width: 54px;
+.pickupMarker {
+  top: 50%;
+  left: 9%;
+}
+
+.dropMarker {
+  top: 50%;
+  left: 91%;
+  color: var(--coral);
+}
+
+.pickupMarker span,
+.dropMarker span {
+  width: 30px;
   height: 30px;
-  border: 2px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px 8px 5px 5px;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
-  transition: top 50ms linear, left 120ms ease;
+  display: grid;
+  place-items: center;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background: rgba(17, 17, 26, 0.86);
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 0 0 5px rgba(17, 17, 26, 0.6), 0 0 18px currentColor;
 }
 
-.vehicle::before,
-.vehicle::after {
+.pickupMarker small,
+.dropMarker small {
+  padding: 3px 5px;
+  border-radius: 2px;
+  color: var(--muted);
+  background: rgba(17, 17, 26, 0.72);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.pickupMarker.markerComplete {
+  color: var(--violet);
+  opacity: 0.68;
+}
+
+.dropMarker.dropReady {
+  color: var(--lime);
+  animation: markerPulse 1.2s ease-in-out infinite;
+}
+
+.trafficVehicle,
+.routeTruck {
+  position: absolute;
+  z-index: 8;
+  transform: translate(-50%, -50%);
+}
+
+.trafficVehicle {
+  width: 50px;
+  height: 25px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px 8px 4px 4px;
+  box-shadow: 0 8px 17px rgba(0, 0, 0, 0.3);
+  transition: left 50ms linear, top 120ms ease;
+}
+
+.trafficVehicle::before,
+.trafficVehicle::after {
   content: "";
   position: absolute;
-  bottom: -7px;
-  width: 8px;
-  height: 8px;
+  bottom: -6px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   background: #09090f;
-  border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
-.vehicle::before {
+.trafficVehicle::before {
   left: 7px;
 }
 
-.vehicle::after {
+.trafficVehicle::after {
   right: 7px;
 }
 
-.vehicle.van {
-  width: 65px;
-  height: 37px;
-  border-radius: 6px 10px 5px 5px;
+.trafficVan {
+  width: 62px;
+  height: 32px;
+  border-radius: 5px 10px 4px 4px;
 }
 
-.vehicleWindow {
+.trafficWindow {
   position: absolute;
-  top: 5px;
-  left: 16px;
-  width: 25px;
-  height: 9px;
+  top: 4px;
+  left: 18px;
+  width: 20px;
+  height: 8px;
   border-radius: 3px;
   background: rgba(14, 17, 29, 0.62);
 }
 
-.vehicleStripe {
+.trafficStripe {
   position: absolute;
-  top: 21px;
   right: 8px;
+  bottom: 6px;
   left: 8px;
   height: 2px;
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.38);
 }
 
-.vehicleLight {
-  position: absolute;
-  right: 5px;
-  top: 7px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #fff5be;
-  box-shadow: 0 0 8px #fff5be;
+.routeTruck {
+  width: 92px;
+  height: 54px;
+  z-index: 9;
+  transition: left 60ms linear, top 120ms ease;
 }
 
-.parcel {
-  width: 39px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: 2px solid;
-  border-radius: 4px;
-  background: #d3a86a;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), inset 0 0 0 3px rgba(255, 245, 202, 0.12);
-  transition: top 50ms linear, left 120ms ease;
-}
-
-.parcel::before {
-  content: "";
-  position: absolute;
-  top: -2px;
-  right: 7px;
-  left: 7px;
-  height: 6px;
-  border-bottom: 1px solid rgba(56, 39, 21, 0.3);
-}
-
-.parcelLabel {
-  color: #382716;
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-}
-
-.parcelTape {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 5px;
-  background: rgba(255, 242, 185, 0.44);
-  transform: translateX(-50%);
-}
-
-.truck {
-  width: 98px;
-  height: 67px;
-  z-index: 6;
-  transition: left 120ms ease;
-}
-
-.truck::after {
+.routeTruck::after {
   content: "";
   position: absolute;
   right: 4px;
-  bottom: -5px;
+  bottom: -7px;
   left: 4px;
-  height: 12px;
+  height: 13px;
   border-radius: 50%;
-  background: rgba(216, 246, 106, 0.12);
-  filter: blur(5px);
+  background: rgba(216, 246, 106, 0.16);
+  filter: blur(6px);
 }
 
-.truckCab {
+.routeTruckBox {
   position: absolute;
-  right: 4px;
-  bottom: 12px;
-  width: 35px;
-  height: 39px;
-  border: 2px solid #d8f66a;
-  border-radius: 5px 11px 5px 5px;
-  background: #c9e85c;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
-}
-
-.truckBox {
-  position: absolute;
-  bottom: 12px;
-  left: 5px;
-  width: 62px;
-  height: 49px;
+  bottom: 10px;
+  left: 3px;
+  width: 57px;
+  height: 36px;
   display: grid;
   place-items: center;
-  border: 2px solid #8c9a45;
-  border-radius: 5px 3px 3px 5px;
-  background: #59632f;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
-}
-
-.truckBoxMark {
-  display: grid;
-  width: 27px;
-  height: 27px;
-  place-items: center;
-  border: 1px solid rgba(216, 246, 106, 0.75);
-  border-radius: 50%;
+  border: 2px solid #a2b84e;
+  border-radius: 4px 3px 3px 4px;
   color: var(--lime);
+  background: #59632f;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
   font-family: var(--font-geist-mono), monospace;
   font-size: 8px;
   font-weight: 700;
 }
 
-.truckWindow {
+.routeTruckBox::after {
+  content: "";
   position: absolute;
-  top: 6px;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  background: rgba(216, 246, 106, 0.2);
+  transform: translateX(-50%);
+}
+
+.routeTruckCab {
+  position: absolute;
+  right: 3px;
+  bottom: 10px;
+  width: 33px;
+  height: 31px;
+  border: 2px solid var(--lime);
+  border-radius: 4px 10px 4px 4px;
+  background: #c9e85c;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+.routeTruckWindow {
+  position: absolute;
+  top: 5px;
   left: 6px;
-  width: 19px;
-  height: 14px;
+  width: 17px;
+  height: 12px;
   border: 1px solid rgba(24, 33, 25, 0.38);
   border-radius: 3px;
   background: #27303a;
 }
 
-.truckLight {
+.routeWheelOne,
+.routeWheelTwo {
   position: absolute;
-  right: 5px;
-  bottom: 18px;
-  z-index: 1;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #fff7b2;
-  box-shadow: 0 0 9px #fff7b2;
-}
-
-.truckWheelOne,
-.truckWheelTwo {
-  position: absolute;
-  bottom: 5px;
+  bottom: 3px;
   z-index: 2;
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   border: 3px solid #11121a;
   border-radius: 50%;
   background: #777d8b;
 }
 
-.truckWheelOne {
-  left: 19px;
+.routeWheelOne {
+  left: 17px;
 }
 
-.truckWheelTwo {
-  right: 19px;
+.routeWheelTwo {
+  right: 17px;
+}
+
+.truckAtDrop {
+  filter: drop-shadow(0 0 10px rgba(216, 246, 106, 0.4));
+}
+
+.routePrompt {
+  position: absolute;
+  right: 18px;
+  bottom: 17px;
+  left: 18px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 15px;
+  border: 1px solid rgba(216, 246, 106, 0.25);
+  border-radius: 4px;
+  background: rgba(17, 17, 26, 0.9);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(5px);
+}
+
+.promptKicker {
+  color: var(--lime);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+.routePrompt strong {
+  margin-right: auto;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.routePrompt button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 3px;
+  color: #171820;
+  background: var(--lime);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.routePrompt button:hover {
+  background: #efffa5;
 }
 
 .eventToast {
   position: absolute;
-  top: 50%;
+  top: 14%;
   left: 50%;
-  z-index: 9;
+  z-index: 13;
   padding: 8px 12px;
   border: 1px solid rgba(216, 246, 106, 0.28);
   border-radius: 3px;
@@ -602,7 +714,7 @@
   font-size: 10px;
   letter-spacing: 0.08em;
   white-space: nowrap;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   animation: toastIn 160ms ease-out;
 }
 
@@ -675,6 +787,7 @@
 }
 
 .primaryButton:focus-visible,
+.routePrompt button:focus-visible,
 .steerButton:focus-visible {
   outline: 2px solid var(--coral);
   outline-offset: 3px;
@@ -1019,6 +1132,16 @@
   }
 }
 
+@keyframes markerPulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+}
+
 @media (max-width: 960px) {
   .dashboard {
     grid-template-columns: 1fr;
@@ -1088,7 +1211,7 @@
     font-size: 8px;
   }
 
-  .road {
+  .mapCanvas {
     height: 442px;
   }
 
@@ -1115,6 +1238,24 @@
     display: none;
   }
 
+  .routePrompt {
+    display: block;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    padding: 10px;
+  }
+
+  .routePrompt strong {
+    display: block;
+    margin: 5px 0 9px;
+  }
+
+  .routePrompt button {
+    width: 100%;
+    justify-content: center;
+  }
+
   .footer {
     display: block;
     padding: 20px 0;
@@ -1127,13 +1268,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .vehicle,
-  .parcel,
-  .truck,
+  .trafficVehicle,
+  .routeTruck,
+  .routeProgressLine,
   .progressTrack span,
   .primaryButton,
-  .steerButton {
+  .steerButton,
+  .dropMarker.dropReady {
     transition: none;
+    animation: none;
   }
 
   .eventToast {

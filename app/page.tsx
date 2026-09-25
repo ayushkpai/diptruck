@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import styles from "./page.module.css";
 
 type GameStatus = "ready" | "playing" | "paused" | "gameover" | "complete";
+type RoutePhase = "pickup" | "driving" | "parked";
 type VehicleKind = "car" | "van";
 
 type TrafficItem = {
@@ -16,40 +17,28 @@ type TrafficItem = {
   cycle: number;
 };
 
-type ParcelItem = {
-  id: number;
-  lane: number;
-  progress: number;
-  speed: number;
-  label: string;
-  accent: string;
-  cycle: number;
-};
-
 type GameState = {
   status: GameStatus;
+  phase: RoutePhase;
   lane: number;
+  routeProgress: number;
   timeLeft: number;
   score: number;
   delivered: number;
-  missed: number;
   combo: number;
   lives: number;
   traffic: TrafficItem[];
-  parcels: ParcelItem[];
   event: string;
   eventAge: number;
 };
 
-const LANE_POSITIONS = [18, 50, 82] as const;
+const LANE_POSITIONS = [32, 50, 68] as const;
 const TRAFFIC_COLORS = ["#ff8a65", "#9b9cff", "#ffcc66", "#65d6b0"];
-const PARCEL_LABELS = ["NORTH", "RIVER", "MARKET", "HILL"];
-const PARCEL_COLORS = ["#ffcd56", "#6ce5c2", "#ff8a65", "#a892ff"];
-const TARGET_DELIVERIES = 8;
-const START_TIME = 60;
+const START_TIME = 45;
+const ROUTE_SPEED = 0.0055;
 const TICK_MS = 50;
-const PARCEL_CATCH_LINE = 0.78;
-const COLLISION_LINE = 0.84;
+const DROP_TRIGGER = 0.9;
+const DROP_LANE = 1;
 
 function createTraffic(
   id: number,
@@ -69,46 +58,21 @@ function createTraffic(
   };
 }
 
-function createParcel(
-  id: number,
-  lane: number,
-  progress: number,
-  speed: number,
-  label: string,
-  accent: string,
-): ParcelItem {
-  return {
-    id,
-    lane,
-    progress,
-    speed,
-    label,
-    accent,
-    cycle: 0,
-  };
-}
-
 function createGame(status: GameStatus = "ready"): GameState {
   return {
     status,
+    phase: "pickup",
     lane: 1,
+    routeProgress: 0,
     timeLeft: START_TIME,
     score: 0,
     delivered: 0,
-    missed: 0,
     combo: 0,
     lives: 3,
     traffic: [
-      createTraffic(1, 0, 0.2, 0.0095, "van"),
-      createTraffic(2, 2, 0.46, 0.0075, "car"),
-      createTraffic(3, 0, 0.73, 0.008, "car"),
-      createTraffic(4, 1, -0.2, 0.006, "van"),
-    ],
-    parcels: [
-      createParcel(11, 1, -0.1, 0.0058, "NORTH", PARCEL_COLORS[0]),
-      createParcel(12, 0, 0.31, 0.0052, "RIVER", PARCEL_COLORS[1]),
-      createParcel(13, 2, 0.58, 0.0048, "MARKET", PARCEL_COLORS[2]),
-      createParcel(14, 1, 0.9, 0.0042, "HILL", PARCEL_COLORS[3]),
+      createTraffic(1, 0, 0.57, 0.0032, "car"),
+      createTraffic(2, 2, 0.84, 0.0027, "van"),
+      createTraffic(3, 1, 0.38, 0.003, "car"),
     ],
     event: "",
     eventAge: 0,
@@ -119,24 +83,10 @@ function recycleTraffic(item: TrafficItem): TrafficItem {
   const nextCycle = item.cycle + 1;
   return {
     ...item,
-    lane: (item.lane + nextCycle) % 3,
-    progress: -0.24,
-    speed: 0.006 + ((item.id + nextCycle) % 4) * 0.0012,
-    kind: (item.id + nextCycle) % 3 === 0 ? "van" : "car",
-    cycle: nextCycle,
-  };
-}
-
-function recycleParcel(item: ParcelItem): ParcelItem {
-  const nextCycle = item.cycle + 1;
-  const nextLabelIndex = (item.id + nextCycle) % PARCEL_LABELS.length;
-  return {
-    ...item,
     lane: (item.lane + nextCycle + 1) % 3,
-    progress: -0.26,
-    speed: 0.0042 + ((item.id + nextCycle) % 3) * 0.0008,
-    label: PARCEL_LABELS[nextLabelIndex],
-    accent: PARCEL_COLORS[nextLabelIndex],
+    progress: 1.1,
+    speed: 0.0025 + ((item.id + nextCycle) % 4) * 0.00035,
+    kind: (item.id + nextCycle) % 3 === 0 ? "van" : "car",
     cycle: nextCycle,
   };
 }
@@ -153,6 +103,45 @@ export default function Home() {
 
   const startGame = useCallback(() => {
     setGame(createGame("playing"));
+  }, []);
+
+  const loadParcel = useCallback(() => {
+    setGame((current) => {
+      if (current.status !== "playing" || current.phase !== "pickup") {
+        return current;
+      }
+      return {
+        ...current,
+        phase: "driving",
+        event: "Parcel loaded — follow the route",
+        eventAge: 0,
+      };
+    });
+  }, []);
+
+  const parkTruck = useCallback(() => {
+    setGame((current) => {
+      if (current.status !== "playing" || current.phase !== "parked") {
+        return current;
+      }
+      if (current.lane !== DROP_LANE) {
+        return {
+          ...current,
+          event: "Pull into the center bay to park",
+          eventAge: 0,
+        };
+      }
+      return {
+        ...current,
+        status: "complete",
+        phase: "parked",
+        routeProgress: 1,
+        delivered: 1,
+        score: current.score + 500 + Math.round(current.timeLeft * 5),
+        event: "Delivery complete — parcel dropped",
+        eventAge: 0,
+      };
+    });
   }, []);
 
   const togglePause = useCallback(() => {
@@ -179,127 +168,120 @@ export default function Home() {
 
   const moveLane = useCallback((direction: number) => {
     setGame((current) => {
-      if (current.status !== "playing") {
+      if (current.status !== "playing" || current.phase === "pickup") {
         return current;
       }
       const nextLane = Math.max(0, Math.min(2, current.lane + direction));
       if (nextLane === current.lane) {
         return current;
       }
-      return { ...current, lane: nextLane };
+      return {
+        ...current,
+        lane: nextLane,
+        event:
+          current.phase === "parked" && nextLane === DROP_LANE
+            ? "Center bay aligned — park when ready"
+            : current.event,
+        eventAge: nextLane === DROP_LANE ? 0 : current.eventAge,
+      };
     });
   }, []);
 
   useEffect(() => {
-    if (game.status !== "playing") {
+    if (
+      game.status !== "playing" ||
+      game.phase === "pickup" ||
+      game.phase === "parked"
+    ) {
       return;
     }
 
     const interval = window.setInterval(() => {
       setGame((current) => {
-        if (current.status !== "playing") {
+        if (current.status !== "playing" || current.phase !== "driving") {
           return current;
         }
 
         const nextTimeLeft = Math.max(0, current.timeLeft - TICK_MS / 1000);
         if (nextTimeLeft === 0) {
-          const finishedStatus =
-            current.delivered >= TARGET_DELIVERIES ? "complete" : "gameover";
           return {
             ...current,
             timeLeft: 0,
-            status: finishedStatus,
-            event:
-              finishedStatus === "complete"
-                ? "Route complete — great driving"
-                : "Shift complete — keep practicing",
+            status: "gameover",
+            event: "Shift complete — the drop-off is still waiting",
             eventAge: 0,
           };
         }
 
-        let nextStatus: GameStatus = "playing";
-        let score = current.score;
-        let delivered = current.delivered;
-        let missed = current.missed;
-        let combo = current.combo;
-        let lives = current.lives;
         let event = current.eventAge > 18 ? "" : current.event;
         let eventAge = current.eventAge + 1;
+        let lives = current.lives;
+        let score = current.score;
+        let combo = current.combo;
         let collisionHandled = false;
 
         const traffic = current.traffic.map((item) => {
-          const nextProgress = item.progress + item.speed;
+          const nextProgress = item.progress - item.speed;
           const isCollision =
             !collisionHandled &&
-            nextProgress >= COLLISION_LINE &&
-            item.progress < COLLISION_LINE &&
-            item.lane === current.lane;
+            item.lane === current.lane &&
+            item.progress >= current.routeProgress &&
+            nextProgress <= current.routeProgress + ROUTE_SPEED;
 
           if (isCollision) {
             collisionHandled = true;
             lives -= 1;
             combo = 0;
-            event = lives > 0 ? "Close call — truck damaged" : "Truck wrecked";
+            score = Math.max(0, score - 25);
+            event = lives > 0 ? "Traffic ahead — change lanes" : "Truck wrecked";
             eventAge = 0;
-            if (lives === 0) {
-              nextStatus = "gameover";
-            }
             return recycleTraffic(item);
           }
 
-          if (nextProgress > 1.12) {
+          if (nextProgress < -0.12) {
             return recycleTraffic(item);
           }
 
           return { ...item, progress: nextProgress };
         });
 
-        const parcels = current.parcels.flatMap((item) => {
-          const nextProgress = item.progress + item.speed;
-          const isCatch =
-            nextProgress >= PARCEL_CATCH_LINE && item.progress < PARCEL_CATCH_LINE;
+        if (lives === 0) {
+          return {
+            ...current,
+            timeLeft: nextTimeLeft,
+            status: "gameover",
+            score,
+            combo,
+            lives,
+            traffic,
+            event,
+            eventAge,
+          };
+        }
 
-          if (isCatch) {
-            if (item.lane === current.lane) {
-              delivered += 1;
-              score += 100 + combo * 25;
-              combo += 1;
-              event = `${item.label} parcel delivered`;
-              eventAge = 0;
-            } else {
-              missed += 1;
-              combo = 0;
-              event = "Wrong lane — parcel missed";
-              eventAge = 0;
-            }
-            return [recycleParcel(item)];
-          }
+        const nextRouteProgress = Math.min(
+          DROP_TRIGGER,
+          current.routeProgress + ROUTE_SPEED,
+        );
+        const reachedDrop = nextRouteProgress >= DROP_TRIGGER;
 
-          if (nextProgress > 1.1) {
-            return [recycleParcel(item)];
-          }
-
-          return [{ ...item, progress: nextProgress }];
-        });
-
-        if (delivered >= TARGET_DELIVERIES) {
-          nextStatus = "complete";
-          score += Math.round(nextTimeLeft * 10);
-          event = "Route complete — bonus time claimed";
+        if (reachedDrop) {
+          event =
+            current.lane === DROP_LANE
+              ? "Drop-off ahead — park in the center bay"
+              : "Drop-off ahead — line up in the center bay";
           eventAge = 0;
         }
 
         return {
           ...current,
-          status: nextStatus,
+          phase: reachedDrop ? "parked" : "driving",
+          routeProgress: nextRouteProgress,
           timeLeft: nextTimeLeft,
           score,
-          delivered,
-          missed,
           combo,
           lives,
           traffic,
-          parcels,
           event,
           eventAge,
         };
@@ -307,7 +289,7 @@ export default function Home() {
     }, TICK_MS);
 
     return () => window.clearInterval(interval);
-  }, [game.status]);
+  }, [game.phase, game.status]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -320,10 +302,14 @@ export default function Home() {
         event.preventDefault();
         moveLane(1);
       }
-      if (event.code === "Space") {
+      if (event.code === "Space" || key === "enter") {
         event.preventDefault();
         if (game.status === "ready" || game.status === "gameover" || game.status === "complete") {
           startGame();
+        } else if (game.phase === "pickup") {
+          loadParcel();
+        } else if (game.phase === "parked") {
+          parkTruck();
         } else {
           togglePause();
         }
@@ -332,43 +318,49 @@ export default function Home() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [game.status, moveLane, startGame, togglePause]);
+  }, [game.phase, game.status, loadParcel, moveLane, parkTruck, startGame, togglePause]);
 
   const totalSeconds = Math.max(0, Math.ceil(game.timeLeft));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  const nextParcel = [...game.parcels].sort((a, b) => b.progress - a.progress)[0];
-  const progress = Math.min(100, (game.delivered / TARGET_DELIVERIES) * 100);
-  const statusLabel = {
-    ready: "READY TO ROLL",
-    playing: "LIVE ROUTE",
-    paused: "PAUSED",
-    gameover: "SHIFT OVER",
-    complete: "ROUTE COMPLETE",
-  }[game.status];
+  const routePercent = Math.round(game.routeProgress * 100);
+  const isComplete = game.status === "complete";
+  const statusLabel = isComplete
+    ? "ROUTE COMPLETE"
+    : game.status === "ready"
+      ? "ROUTE BRIEF"
+      : game.status === "paused"
+        ? "PAUSED"
+        : game.status === "gameover"
+          ? "SHIFT OVER"
+          : game.phase === "pickup"
+            ? "PICKUP READY"
+            : game.phase === "parked"
+              ? "PARK NOW"
+              : "ON ROUTE";
 
   const overlayTitle = {
     ready: "Your route is ready",
     playing: "",
     paused: "Taking a breather",
     gameover: "Shift complete",
-    complete: "You delivered everything",
+    complete: "You made the drop",
   }[game.status];
 
   const overlayText = {
-    ready: "Match each parcel to the lane it is traveling in. Clear traffic, build a streak, and beat the clock.",
+    ready: "Park at Pickup A, load the parcel, follow the highlighted map, and park in the center bay at Drop-off B.",
     playing: "",
-    paused: "Your truck and parcels are frozen until you return to the road.",
-    gameover: `${game.delivered} of ${TARGET_DELIVERIES} parcels made it home. The city is ready for another run.`,
-    complete: `You cleared every stop with ${formatTime(game.timeLeft)} left and ${game.score.toLocaleString()} points.`,
+    paused: "Your route is frozen until you return to the road.",
+    gameover: "The route is still open. Try again and keep the truck in the clear lane.",
+    complete: `Parcel delivered in ${formatTime(game.timeLeft)} with ${game.score.toLocaleString()} points.`,
   }[game.status];
 
   const overlayAction = {
-    ready: "Start shift",
+    ready: "Start route",
     playing: "",
-    paused: "Resume shift",
+    paused: "Resume route",
     gameover: "Try again",
-    complete: "Run it back",
+    complete: "Run another route",
   }[game.status];
 
   return (
@@ -386,18 +378,18 @@ export default function Home() {
         <div className={styles.headerRight}>
           <span className={styles.headerRoute}>CITY GRID / 04</span>
           <span className={styles.headerDivider} />
-          <span className={styles.bestScore}>SHIFT 01 / 60 SEC</span>
+          <span className={styles.bestScore}>SHIFT 01 / 45 SEC</span>
         </div>
       </header>
 
       <section className={styles.hero}>
         <div>
-          <p className={styles.eyebrow}>NEON FREIGHT / NIGHT SHIFT</p>
+          <p className={styles.eyebrow}>NEON FREIGHT / ROUTE RUNNER</p>
           <h1>
             Delivery <span>Rush</span>
           </h1>
           <p className={styles.heroCopy}>
-            Thread the traffic. Catch the cargo. Keep the city moving.
+            Park at pickup. Follow the map. Make the drop.
           </p>
         </div>
         <div className={styles.heroStamp}>
@@ -411,8 +403,8 @@ export default function Home() {
         <div className={styles.gameColumn}>
           <div className={styles.gameMeta}>
             <div>
-              <span className={styles.metaLabel}>CURRENT SHIFT</span>
-              <span className={styles.metaValue}>DOWNTOWN LOOP</span>
+              <span className={styles.metaLabel}>CURRENT ROUTE</span>
+              <span className={styles.metaValue}>PICKUP A → DROP B</span>
             </div>
             <div className={`${styles.statusBadge} ${styles[game.status]}`}>
               <span className={styles.statusPulse} />
@@ -422,67 +414,101 @@ export default function Home() {
 
           <div className={styles.playfield}>
             <div className={styles.playfieldHeader}>
-              <span>DEPOT DROP</span>
-              <span>WIND 12 KM/H</span>
+              <span>CITY MAP / ROUTE 04</span>
+              <span>2 STOPS</span>
             </div>
-            <div className={styles.road} aria-label="Game road">
-              <div className={styles.roadGlow} />
-              <div className={styles.laneLineOne} />
-              <div className={styles.laneLineTwo} />
-              <div className={styles.roadEdgeLeft} />
-              <div className={styles.roadEdgeRight} />
-              <div className={styles.catchLine} />
-              <span className={styles.roadLabelTop}>DROP ZONE</span>
-              <span className={styles.roadLabelBottom}>PICKUP</span>
+            <div className={styles.mapCanvas} aria-label="City route map">
+              <div className={styles.mapGrid} />
+              <div className={styles.mapBlocks} aria-hidden="true">
+                <span className={styles.mapBlockOne} />
+                <span className={styles.mapBlockTwo} />
+                <span className={styles.mapBlockThree} />
+                <span className={styles.mapBlockFour} />
+                <span className={styles.mapBlockFive} />
+                <span className={styles.mapBlockSix} />
+              </div>
+              <div className={styles.mapRoad}>
+                <div className={styles.mapLaneLineOne} />
+                <div className={styles.mapLaneLineTwo} />
+                <div className={styles.routeGuide} />
+                <div
+                  className={styles.routeProgressLine}
+                  style={{ width: `${game.routeProgress * 100}%` }}
+                />
+              </div>
+              <svg
+                className={styles.mapRouteSvg}
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <path d="M 9 50 C 27 50, 30 50, 48 50 S 73 50, 91 50" />
+                <circle cx="9" cy="50" r="2.2" />
+                <circle cx="91" cy="50" r="2.2" />
+              </svg>
+
+              <div className={`${styles.pickupMarker} ${game.phase !== "pickup" ? styles.markerComplete : ""}`}>
+                <span>A</span>
+                <small>PICKUP</small>
+              </div>
+              <div className={`${styles.dropMarker} ${game.phase === "parked" || isComplete ? styles.dropReady : ""}`}>
+                <span>B</span>
+                <small>DROP-OFF</small>
+              </div>
 
               {game.traffic.map((item) => (
                 <div
-                  className={`${styles.vehicle} ${item.kind === "van" ? styles.van : styles.car}`}
+                  className={`${styles.trafficVehicle} ${item.kind === "van" ? styles.trafficVan : styles.trafficCar}`}
                   key={item.id}
                   style={{
                     backgroundColor: item.color,
-                    left: `${LANE_POSITIONS[item.lane]}%`,
-                    top: `${item.progress * 100}%`,
+                    left: `${item.progress * 100}%`,
+                    top: `${LANE_POSITIONS[item.lane]}%`,
                   }}
                   aria-hidden="true"
                 >
-                  <span className={styles.vehicleWindow} />
-                  <span className={styles.vehicleStripe} />
-                  <span className={styles.vehicleLight} />
-                </div>
-              ))}
-
-              {game.parcels.map((item) => (
-                <div
-                  className={styles.parcel}
-                  key={item.id}
-                  style={{
-                    left: `${LANE_POSITIONS[item.lane]}%`,
-                    top: `${item.progress * 100}%`,
-                    borderColor: item.accent,
-                  }}
-                  aria-hidden="true"
-                >
-                  <span className={styles.parcelLabel}>{item.label.slice(0, 2)}</span>
-                  <span className={styles.parcelTape} />
+                  <span className={styles.trafficWindow} />
+                  <span className={styles.trafficStripe} />
                 </div>
               ))}
 
               <div
-                className={styles.truck}
-                style={{ left: `${LANE_POSITIONS[game.lane]}%` }}
+                className={`${styles.routeTruck} ${game.phase === "parked" ? styles.truckAtDrop : ""}`}
+                style={{
+                  left: `${10 + game.routeProgress * 80}%`,
+                  top: `${LANE_POSITIONS[game.lane]}%`,
+                }}
                 aria-label="Your delivery truck"
               >
-                <span className={styles.truckLight} />
-                <span className={styles.truckCab}>
-                  <span className={styles.truckWindow} />
+                <span className={styles.routeTruckBox}>
+                  <span>DR</span>
                 </span>
-                <span className={styles.truckBox}>
-                  <span className={styles.truckBoxMark}>DR</span>
+                <span className={styles.routeTruckCab}>
+                  <span className={styles.routeTruckWindow} />
                 </span>
-                <span className={styles.truckWheelOne} />
-                <span className={styles.truckWheelTwo} />
+                <span className={styles.routeWheelOne} />
+                <span className={styles.routeWheelTwo} />
               </div>
+
+              {game.phase === "pickup" && (
+                <div className={styles.routePrompt}>
+                  <span className={styles.promptKicker}>STOP A / PICKUP</span>
+                  <strong>Park here and load the parcel</strong>
+                  <button type="button" onClick={loadParcel}>
+                    Load parcel &amp; drive <span aria-hidden="true">→</span>
+                  </button>
+                </div>
+              )}
+
+              {game.phase === "parked" && !isComplete && (
+                <div className={styles.routePrompt}>
+                  <span className={styles.promptKicker}>STOP B / DROP-OFF</span>
+                  <strong>Use the center bay, then park</strong>
+                  <button type="button" onClick={parkTruck}>
+                    Park truck <span aria-hidden="true">↓</span>
+                  </button>
+                </div>
+              )}
 
               {game.event && <div className={styles.eventToast}>{game.event}</div>}
             </div>
@@ -512,7 +538,7 @@ export default function Home() {
             <div className={styles.controlHint}>
               <span className={styles.keyHint}>←</span>
               <span className={styles.keyHint}>→</span>
-              <span>steer your truck</span>
+              <span>steer around traffic</span>
             </div>
             <div className={styles.touchControls}>
               <button
@@ -532,7 +558,7 @@ export default function Home() {
                 →
               </button>
             </div>
-            <span className={styles.pauseHint}>SPACE TO PAUSE</span>
+            <span className={styles.pauseHint}>SPACE TO LOAD / PARK</span>
           </div>
         </div>
 
@@ -550,10 +576,8 @@ export default function Home() {
           <div className={styles.routeCard}>
             <div className={styles.routeCardTop}>
               <div>
-                <span className={styles.cardEyebrow}>DELIVERY PROGRESS</span>
-                <strong>
-                  {String(game.delivered).padStart(2, "0")} / {String(TARGET_DELIVERIES).padStart(2, "0")}
-                </strong>
+                <span className={styles.cardEyebrow}>ROUTE PROGRESS</span>
+                <strong>{routePercent}%</strong>
               </div>
               <span className={styles.routeIcon}>↗</span>
             </div>
@@ -561,14 +585,20 @@ export default function Home() {
               className={styles.progressTrack}
               role="progressbar"
               aria-valuemin={0}
-              aria-valuemax={TARGET_DELIVERIES}
-              aria-valuenow={game.delivered}
+              aria-valuemax={100}
+              aria-valuenow={routePercent}
             >
-              <span style={{ width: `${progress}%` }} />
+              <span style={{ width: `${routePercent}%` }} />
             </div>
             <div className={styles.routeCardBottom}>
-              <span>{game.delivered === TARGET_DELIVERIES ? "All stops cleared" : "Keep the wheels turning"}</span>
-              <span>{Math.round(progress)}%</span>
+              <span>
+                {game.phase === "pickup"
+                  ? "Load at Pickup A"
+                  : game.phase === "parked"
+                    ? "Park at Drop-off B"
+                    : "Follow the map"}
+              </span>
+              <span>{game.delivered ? "Delivered" : "1 parcel"}</span>
             </div>
           </div>
 
@@ -584,9 +614,9 @@ export default function Home() {
               <span className={styles.statAccent}>MIN : SEC</span>
             </div>
             <div className={styles.statCard}>
-              <span className={styles.cardEyebrow}>STREAK</span>
-              <strong>x{game.combo}</strong>
-              <span className={styles.statAccent}>CLEAN HITS</span>
+              <span className={styles.cardEyebrow}>CLEAN ROUTE</span>
+              <strong>{game.combo}</strong>
+              <span className={styles.statAccent}>AVOIDED HITS</span>
             </div>
             <div className={styles.statCard}>
               <span className={styles.cardEyebrow}>TRUCK</span>
@@ -600,12 +630,20 @@ export default function Home() {
           </div>
 
           <div className={styles.nextCard}>
-            <span className={styles.cardEyebrow}>NEXT DROP</span>
+            <span className={styles.cardEyebrow}>NEXT STOP</span>
             <div className={styles.nextDropRow}>
               <span className={styles.dropPin} />
               <div>
-                <strong>{nextParcel?.label ?? "NORTH"} DISTRICT</strong>
-                <span>Parcel {String(Math.min(game.delivered + 1, TARGET_DELIVERIES)).padStart(2, "0")} / {String(TARGET_DELIVERIES).padStart(2, "0")}</span>
+                <strong>
+                  {game.phase === "pickup" ? "PICKUP DEPOT" : "NORTHSIDE MARKET"}
+                </strong>
+                <span>
+                  {game.phase === "pickup"
+                    ? "Park in bay A to load"
+                    : game.phase === "parked"
+                      ? "Center bay B is ready"
+                      : "Follow the highlighted route"}
+                </span>
               </div>
               <span className={styles.dropArrow}>→</span>
             </div>
@@ -613,7 +651,7 @@ export default function Home() {
 
           <div className={styles.tipCard}>
             <span className={styles.tipIcon}>✦</span>
-            <p><strong>Dispatch tip</strong> Match the lane before the parcel reaches the pickup line. Consecutive hits multiply your score.</p>
+            <p><strong>Dispatch tip</strong> The truck drives itself along the route. Steer around traffic, then park neatly in the center bay.</p>
           </div>
         </aside>
       </section>
